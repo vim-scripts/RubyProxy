@@ -1,0 +1,39 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=3251
+
+RubyProxy
+RubyProxy acts as a proxy between ruby and vim, so that most of vims functions are usable in ruby. Only the functions, which accepts lists and dictionary won't work. And functions, which returns Dictionaries. It can work with functions that return lists now (including depth n with n > 1).  Floats are a problem, because the string function won't accept it in VIM 7.2. 
+
+There is a example added in  RubyProxy.vim, to show to use this class.
+
+USAGE
+
+You need to prefix every vim function with the letter V (from VIM). E.g:
+
+withProxy:
+
+withProxy accepts a block and makes the proxy available in the scope of the block. 
+
+Every function from :help functions can be called. 
+If you want to use a certain function, the function name must be prefixed with V to avoid clashes with ruby's functions. 
+
+EXAMPLE: 
+
+ruby withProxy { |p| puts p.Vconfirm("Test","&Yes\n&No")}
+
+This will show you a dialog box and return one if someone clicked Yes and 2 where someone clicked No.
+
+Another example (with a function, which returns lists):
+
+withProxy {|p| p.Vgetbufline(1,1,10).each {|x| puts ("hello" + x)}}
+
+This appends hello to the first 10 lines from buffer 1 and echo the lines.
+
+TODO:
+
+Adding support for dictionaries. 
+Adding support for floats. (It is built in, but the string function won't accept floats) 
+Adding data conversions from Ruby to Vim. Now it only accepts list, strings or numbers. 
+
+This approach would probably be pretty easy to adopt for other languages, so create more plugin for different languages. 
+
+See the wiki for more information. Or for some information in Dutch, see here: http://www.i-bytes.nl/code
