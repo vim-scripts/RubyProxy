@@ -19,12 +19,16 @@
 " Version 0.1 - Intial version
 " Version 0.2 - Added conversion of datatype from vim to ruby with yaml.
 "               Supported are: String, Number, List. The rest is coming soon
+" Version 0.21 - Added support for multilevel lists
+"                Cleaned up script
 " @TODO:
 "   Adding support for Dictionaries and Floats
 
 "
 " Example usage:
 " 
+
+
 function! RepeatAndNumber(m,n)
 ruby << EOF
     withProxy { |p|
@@ -36,105 +40,98 @@ endfunction
 " It supports Numbers, Strings, FuncRefs, Lists, Dictionaries and Floats
 
 function! DataToRuby(f)
-    let z = "--- " . DataTypeToRuby_(a:f)
+    let z = "--- " . s:DataTypeToRuby_(a:f)
     return z
 endfunction
 
-function! DataTypeToRuby_(f)
+function! s:DataTypeToRuby_(f)
     let l = a:f
     if type(l) == 0
-        return NumberToRuby(l)
+        return s:NumberToRuby(l)
     endif
     if type(l) == 1
-        return StringToRuby(l)
+        return s:StringToRuby(l)
     endif
     "Func refs are unpacked before sent to ruby
     if type(l) == 2
         let x = l()
-        return DataTypeToRuby_(x)
+        return s:DataTypeToRuby_(x)
     endif
     if type(l) == 3
-        return "\n" . ListToRuby(l)
+        return "\n" . s:ListToRuby(l)
     endif
     if type(l) == 4
-        return DictionaryToRuby(l)
+        return s:DictionaryToRuby(l)
     endif
     if type(l) == 5
-        return FloatToRuby(l)
+        return s:FloatToRuby(l)
     endif 
 endfunction
 " A float is translated to a Fixnum
 " Which is shown as follow: 1\n
-function! NumberToRuby(f)
+function! s:NumberToRuby(f)
     return string(a:f) . "\n"
 endfunction
 " A string is pretty basic a string with a \n at the end
-function! StringToRuby(f)
+function! s:StringToRuby(f)
     return string(a:f) . "\n"
 endfunction
 
-function! ListToRuby(f)
-    let l = a:f
-    let d = 0
+
+function! s:ListToRuby(ls)
+    let ls = a:ls
+    return s:ListToRuby_(ls, 0)
+endfunction
+
+" Needed to debug
+function! s:Log(z, f, a, d, l, msg)
+"    echo "(" . a:msg . ") z=" . substitute(a:z,"\\n","+","g") . ",f=" . a:f . ",a=" . a:a . ",d=" . a:d . ",l=" . a:l
+endfunction
+
+" Worker function, turns a list into yaml
+function! s:ListToRuby_(ls,d)
+    let ls = a:ls
     let z = ""
-    for item in copy(l)
-        let z = AddListItem(item,d,z)
-        unlet item
-    endfor  
+    let d = a:d
+    let f = 1
+    for l in ls
+        if type(l) == 3
+            call Log(z,f,"array",d,"","(before)")
+            let z .= repeat('  ', d) . '- ' . s:ListToRuby_(l, d + 1) 
+            call Log(z,f,"array",d,"","(after)")
+        else 
+            if f == 1
+                call Log(z,f,"element",d,l,"(before)")
+                let z .= '- ' . s:DataTypeToRuby_(l)
+                call Log(z,f,"element",d,l,"(after)")
+                let f = 0
+            else 
+                call Log(z,f,"element",d,l,"(before)")
+                let z .= repeat('  ',d) . '- ' .  s:DataTypeToRuby_(l)
+                call Log(z,f,"element",d,l,"(after)")
+            end
+        endif
+        unlet l
+    endfor
     return z
-endfunction
-
-function! ListStart(d,i)
-    let d = a:d
-    if d == 0 
-        return '- ' . DataTypeToRuby_(a:i)
-    endif
-    return  repeat(" ", d - 1) . "- - " . DataTypeToRuby_(a:i)
-endfunction
-function! ListSep(d,i)
-    let d = a:d
-    let l = a:i
-    if d == 0
-        return "- " . DataTypeToRuby_(l)
-    endif
-    return repeat(" ",d) . "- " . DataTypeToRuby_(l)
-endfunction
-
-function! AddListItem(item, d, z)
-    let l = a:item
-    let z = a:z
-    let d = a:d
-    if(type(l) == 3)
-        " First get the head of the list
-        let head = l[0]
-        let l = l[1:]
-        let z = z . ListStart(d + 1, head) 
-        for x in l
-            let z = AddListItem(x, d + 2, z)
-        unlet x
-        endfor
-        return z
-    endif
-    "Other types
-    if(type(l) != 3)
-        return z . ListSep(d,l)
-    endif
 endfunction
 
 " Dictionary support coming soon
 
-function! DictionaryToRuby(f)
+function! s:DictionaryToRuby(f)
     throw "Dictionary is not supported yet" 
 endfunction
 
-function! DecodeTest(x)
+function! s:DecodeTest(x)
 ruby << EOF
     decodeTest(getA("x"));
 EOF
 endfunction
 
-function! FloatToRuby(f)
+" Not sure this works, cannot test it on my vim version
 
+function! s:FloatToRuby(f)
+    return string(f) . "\n"
 endfunction
 ruby << EOF
 
@@ -153,10 +150,8 @@ def RepeatAndNumber(m,n,v)
 end
 $i
 def decodeTest(n)
-    puts n.gsub(/\n/,"+")
     v = YAML::load(n)
-    puts v.length
-    puts YAML::dump(YAML::load(n)).gsub(/\n/,"+")
+    YAML::dump(v).split(/\n/).each { |x| puts x }
 end
 
 def withProxy 
